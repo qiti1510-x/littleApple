@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>找苹果问题代码执行动画</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#10B981',
+                        accent: '#F59E0B',
+                        danger: '#EF4444',
+                        neutral: '#6B7280',
+                    },
+                    fontFamily: {
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .code-highlight {
+                @apply bg-amber-100 px-1 rounded font-bold;
+            }
+            .apple-present {
+                @apply bg-green-100 border-green-500;
+            }
+            .apple-taken {
+                @apply bg-red-100 border-red-500;
+            }
+            .step-highlight {
+                @apply bg-blue-50 border-l-4 border-blue-500 animate-pulse;
+            }
+            .btn-primary {
+                @apply bg-primary text-white px-4 py-2 rounded hover:bg-primary/90 transition;
+            }
+            .btn-secondary {
+                @apply bg-gray-200 px-4 py-2 rounded hover:bg-gray-300 transition;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <header class="bg-white shadow-md py-4 px-6">
+        <div class="container mx-auto">
+            <h1 class="text-2xl font-bold text-gray-800"><i class="fa fa-apple mr-2"></i>找苹果问题代码执行动画</h1>
+            <p class="text-gray-600 mt-1">可视化演示代码如何一步步解决问题</p>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-6">
+        <div class="flex flex-col md:flex-row gap-6">
+            <!-- 左侧控制面板 -->
+            <div class="w-full md:w-1/3 space-y-4">
+                <div class="bg-white rounded-lg shadow p-4">
+                    <h2 class="text-lg font-semibold mb-3 flex items-center">
+                        <i class="fa fa-sliders mr-2 text-primary"></i>控制面板
+                    </h2>
+                    
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">苹果总数 n:</label>
+                        <input type="number" id="n-input" min="1" value="8" class="w-full p-2 border border-gray-300 rounded">
+                        <button id="reset-btn" class="btn-primary mt-2 w-full">
+                            <i class="fa fa-refresh mr-1"></i>重置
+                        </button>
+                    </div>
+                    
+                    <div class="flex gap-2">
+                        <button id="prev-btn" class="btn-secondary flex-1" disabled>
+                            <i class="fa fa-step-backward mr-1"></i>上一步
+                        </button>
+                        <button id="next-btn" class="btn-primary flex-1">
+                            <i class="fa fa-step-forward mr-1"></i>下一步
+                        </button>
+                    </div>
+                    
+                    <div class="mt-2 flex gap-2">
+                        <button id="play-btn" class="btn-secondary flex-1">
+                            <i class="fa fa-play mr-1"></i>播放
+                        </button>
+                        <button id="speed-btn" class="btn-secondary flex-1">
+                            <i class="fa fa-clock-o mr-1"></i>速度
+                        </button>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <p class="text-sm text-gray-600">当前状态:</p>
+                        <div class="flex justify-between mt-1">
+                            <span class="text-xs bg-gray-100 px-2 py-1 rounded">天数: <span id="current-day" class="font-bold">0</span></span>
+                            <span class="text-xs bg-gray-100 px-2 py-1 rounded">已拿苹果: <span id="taken-count" class="font-bold">0</span></span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow p-4">
+                    <h2 class="text-lg font-semibold mb-3 flex items-center">
+                        <i class="fa fa-lightbulb-o mr-2 text-accent"></i>关键变量说明
+                    </h2>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex">
+                            <span class="font-mono bg-gray-100 px-2 py-1 rounded w-16">a[i]</span>
+                            <span class="ml-2">: 苹果i的状态(0=存在, 1=已拿)</span>
+                        </div>
+                        <div class="flex">
+                            <span class="font-mono bg-gray-100 px-2 py-1 rounded w-16">ans</span>
+                            <span class="ml-2">: 当前总天数</span>
+                        </div>
+                        <div class="flex">
+                            <span class="font-mono bg-gray-100 px-2 py-1 rounded w-16">k</span>
+                            <span class="ml-2">: 编号n的苹果被拿的天数</span>
+                        </div>
+                        <div class="flex">
+                            <span class="font-mono bg-gray-100 px-2 py-1 rounded w-16">now</span>
+                            <span class="ml-2">: 当前计数(控制拿苹果的间隔)</span>
+                        </div>
+                        <div class="flex">
+                            <span class="font-mono bg-gray-100 px-2 py-1 rounded w-16">p</span>
+                            <span class="ml-2">: 标记当天是否有苹果被拿</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 右侧内容区域 -->
+            <div class="w-full md:w-2/3 space-y-4">
+                <!-- 苹果状态显示 -->
+                <div class="bg-white rounded-lg shadow p-4">
+                    <h2 class="text-lg font-semibold mb-3 flex items-center">
+                        <i class="fa fa-cubes mr-2 text-secondary"></i>苹果状态
+                    </h2>
+                    <div id="apples-container" class="flex flex-wrap gap-3">
+                        <!-- 苹果将通过JS动态生成 -->
+                    </div>
+                </div>
+                
+                <!-- 代码显示 -->
+                <div class="bg-white rounded-lg shadow p-4">
+                    <h2 class="text-lg font-semibold mb-3 flex items-center">
+                        <i class="fa fa-code mr-2 text-primary"></i>代码执行过程
+                    </h2>
+                    <pre class="font-mono text-sm bg-gray-50 p-3 rounded overflow-x-auto" id="code-display">
+#include&lt;bits/stdc++.h&gt;
+using namespace std;
+int n,a[1000010],ans,k;
+int main(){
+    cin>>n;
+    while(1){
+        int p=1,now=1;
+        for(int i=1;i<=n;i++){
+            if(a[i]==0)now++;
+            if(now==2){
+                if(n==i)k=ans+1;
+                a[i]=1;
+                p=0;
+                now=-1;
+            }
+        }
+        if(p)break;
+        ans++;
+    }
+    cout<<ans<<" "<<k;
+    return 0;
+}</pre>
+                </div>
+                
+                <!-- 执行日志 -->
+                <div class="bg-white rounded-lg shadow p-4">
+                    <h2 class="text-lg font-semibold mb-3 flex items-center">
+                        <i class="fa fa-list mr-2 text-gray-600"></i>执行日志
+                    </h2>
+                    <div id="log-container" class="h-40 overflow-y-auto bg-gray-50 p-3 rounded text-sm">
+                        <p class="text-gray-500 italic">执行日志将在这里显示...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-gray-800 text-white py-4 mt-8">
+        <div class="container mx-auto px-4 text-center text-sm">
+            <p>找苹果问题代码执行动画演示 &copy; 2023</p>
+        </div>
+    </footer>
+
+    <script>
+        // 代码执行状态
+        let executionState = {
+            n: 8,                // 苹果总数
+            a: [],               // 苹果状态数组 (0=存在, 1=已拿)
+            ans: 0,              // 总天数
+            k: 0,                // 编号n的苹果被拿的天数
+            p: 1,                // 标记当天是否有苹果被拿
+            now: 1,              // 当前计数
+            i: 1,                // 当前循环变量i
+            step: 0,             // 当前执行步骤
+            steps: [],           // 所有执行步骤记录
+            isPlaying: false,    // 是否自动播放
+            speed: 1000,         // 播放速度(ms)
+            intervalId: null     // 自动播放定时器ID
+        };
+
+        // 代码行元素
+        let codeLines = [];
+        
+        // 代码执行步骤类型
+        const STEP_TYPES = {
+            INIT: 'init',
+            WHILE_LOOP: 'while_loop',
+            FOR_LOOP: 'for_loop',
+            IF_A: 'if_a',
+            IF_NOW: 'if_now',
+            IF_N_I: 'if_n_i',
+            SET_A: 'set_a',
+            SET_P: 'set_p',
+            SET_NOW: 'set_now',
+            BREAK: 'break',
+            INCR_ANS: 'incr_ans',
+            END: 'end'
+        };
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            // 获取DOM元素
+            const nInput = document.getElementById('n-input');
+            const resetBtn = document.getElementById('reset-btn');
+            const prevBtn = document.getElementById('prev-btn');
+            const nextBtn = document.getElementById('next-btn');
+            const playBtn = document.getElementById('play-btn');
+            const speedBtn = document.getElementById('speed-btn');
+            const applesContainer = document.getElementById('apples-container');
+            const codeDisplay = document.getElementById('code-display');
+            const logContainer = document.getElementById('log-container');
+            const currentDayEl = document.getElementById('current-day');
+            const takenCountEl = document.getElementById('taken-count');
+            
+            // 初始化代码显示
+            initializeCodeDisplay();
+            
+            // 生成初始状态
+            resetSimulation();
+            
+            // 事件监听器
+            resetBtn.addEventListener('click', () => {
+                executionState.n = parseInt(nInput.value) || 8;
+                resetSimulation();
+            });
+            
+            nextBtn.addEventListener('click', executeNextStep);
+            prevBtn.addEventListener('click', executePrevStep);
+            
+            playBtn.addEventListener('click', togglePlay);
+            speedBtn.addEventListener('click', changeSpeed);
+            
+            // 生成苹果显示
+            function renderApples() {
+                applesContainer.innerHTML = '';
+                for (let i = 1; i <= executionState.n; i++) {
+                    const appleEl = document.createElement('div');
+                    appleEl.className = `w-12 h-12 rounded-full border-2 flex items-center justify-center font-bold relative 
+                                        ${executionState.a[i] ? 'apple-taken' : 'apple-present'}`;
+                    appleEl.innerHTML = `
+                        <span>${i}</span>
+                        ${executionState.a[i] ? '<i class="fa fa-times absolute -top-1 -right-1 text-red-500"></i>' : ''}
+                    `;
+                    if (i === executionState.n) {
+                        appleEl.classList.add('ring-4', 'ring-accent/30');
+                    }
+                    applesContainer.appendChild(appleEl);
+                }
+                
+                // 更新统计信息
+                currentDayEl.textContent = executionState.ans;
+                const takenCount = executionState.a.filter((val, idx) => idx > 0 && val === 1).length;
+                takenCountEl.textContent = takenCount;
+            }
+            
+            // 初始化代码显示
+            function initializeCodeDisplay() {
+                // 将代码分割成行
+                const code = codeDisplay.textContent.trim();
+                const lines = code.split('\n');
+                
+                // 清除原始文本
+                codeDisplay.innerHTML = '';
+                
+                // 创建带行号的代码显示
+                lines.forEach((line, idx) => {
+                    const lineEl = document.createElement('div');
+                    lineEl.className = 'flex items-center';
+                    lineEl.dataset.line = idx;
+                    
+                    const lineNum = document.createElement('span');
+                    lineNum.className = 'text-gray-400 w-8 text-right inline-block mr-2';
+                    lineNum.textContent = idx + 1;
+                    
+                    const lineContent = document.createElement('span');
+                    lineContent.textContent = line;
+                    
+                    lineEl.appendChild(lineNum);
+                    lineEl.appendChild(lineContent);
+                    codeDisplay.appendChild(lineEl);
+                    codeLines.push(lineEl);
+                });
+            }
+            
+            // 高亮代码行
+            function highlightCodeLine(lineIndex, isStep = false) {
+                // 清除所有高亮
+                codeLines.forEach(line => {
+                    line.classList.remove('code-highlight', 'step-highlight');
+                });
+                
+                if (lineIndex >= 0 && lineIndex < codeLines.length) {
+                    if (isStep) {
+                        codeLines[lineIndex].classList.add('step-highlight');
+                    } else {
+                        codeLines[lineIndex].classList.add('code-highlight');
+                    }
+                    
+                    // 滚动到代码行
+                    codeLines[lineIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+            
+            // 添加日志
+            function addLog(message, isImportant = false) {
+                const logEl = document.createElement('p');
+                logEl.className = isImportant ? 'text-primary font-medium' : '';
+                logEl.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+                
+                if (logContainer.firstChild && logContainer.firstChild.classList.contains('text-gray-500')) {
+                    logContainer.innerHTML = '';
+                }
+                
+                logContainer.appendChild(logEl);
+                logContainer.scrollTop = logContainer.scrollHeight;
+            }
+            
+            // 重置模拟
+            function resetSimulation() {
+                // 重置状态
+                executionState = {
+                    ...executionState,
+                    a: new Array(executionState.n + 1).fill(0), // 苹果状态数组(1-based)
+                    ans: 0,
+                    k: 0,
+                    p: 1,
+                    now: 1,
+                    i: 1,
+                    step: 0,
+                    steps: [],
+                    isPlaying: false
+                };
+                
+                // 停止自动播放
+                if (executionState.intervalId) {
+                    clearInterval(executionState.intervalId);
+                    executionState.intervalId = null;
+                }
+                
+                // 生成执行步骤
+                generateExecutionSteps();
+                
+                // 更新UI
+                renderApples();
+                highlightCodeLine(-1);
+                logContainer.innerHTML = '<p class="text-gray-500 italic">模拟已重置，点击"下一步"开始执行...</p>';
+                updateButtons();
+            }
+            
+            // 生成所有执行步骤
+            function generateExecutionSteps() {
+                executionState.steps = [];
+                const steps = [];
+                let stepId = 0;
+                
+                // 初始状态
+                steps.push({
+                    id: stepId++,
+                    type: STEP_TYPES.INIT,
+                    line: 3, // cin>>n;
+                    log: `初始化: 读取苹果总数 n = ${executionState.n}`,
+                    state: {
+                        n: executionState.n,
+                        a: [...executionState.a],
+                        ans: executionState.ans,
+                        k: executionState.k,
+                        p: executionState.p,
+                        now: executionState.now,
+                        i: executionState.i
+                    }
+                });
+                
+                let day = 0;
+                let continueLoop = true;
+                
+                // 模拟执行生成步骤
+                while (continueLoop) {
+                    day++;
+                    steps.push({
+                        id: stepId++,
+                        type: STEP_TYPES.WHILE_LOOP,
+                        line: 4, // while(1){
+                        log: `第 ${day} 天开始: 进入while循环`,
+                        state: {
+                            ...getCurrentState(),
+                            p: 1,
+                            now: 1
+                        }
+                    });
+                    
+                    steps.push({
+                        id: stepId++,
+                        type: STEP_TYPES.WHILE_LOOP,
+                        line: 5, // int p=1,now=1;
+                        log: `初始化变量: p=1(标记当天是否有苹果被拿), now=1(计数变量)`,
+                        state: {
+                            ...getCurrentState(),
+                            p: 1,
+                            now: 1
+                        }
+                    });
+                    
+                    let hasTaken = false;
+                    for (let i = 1; i <= executionState.n; i++) {
+                        steps.push({
+                            id: stepId++,
+                            type: STEP_TYPES.FOR_LOOP,
+                            line: 6, // for(int i=1;i<=n;i++){
+                            log: `进入for循环: i = ${i}`,
+                            state: {
+                                ...getCurrentState(),
+                                i: i
+                            }
+                        });
+                        
+                        const a_i = executionState.a[i];
+                        steps.push({
+                            id: stepId++,
+                            type: STEP_TYPES.IF_A,
+                            line: 7, // if(a[i]==0)now++;
+                            log: `判断: 苹果 ${i} ${a_i ? '已被拿' : '存在'}, ${a_i ? '不执行' : '执行'} now++`,
+                            state: {
+                                ...getCurrentState(),
+                                i: i,
+                                now: a_i ? executionState.now : executionState.now + 1
+                            }
+                        });
+                        
+                        // 更新now值
+                        if (!a_i) {
+                            executionState.now++;
+                        }
+                        
+                        const nowVal = executionState.now;
+                        steps.push({
+                            id: stepId++,
+                            type: STEP_TYPES.IF_NOW,
+                            line: 8, // if(now==2){
+                            log: `判断: now = ${nowVal}, ${nowVal == 2 ? '满足条件，准备拿苹果' : '不满足条件' }`,
+                            state: {
+                                ...getCurrentState(),
+                                i: i
+                            }
+                        });
+                        
+                        if (nowVal == 2) {
+                            steps.push({
+                                id: stepId++,
+                                type: STEP_TYPES.IF_N_I,
+                                line: 9, // if(n==i)k=ans+1;
+                                log: `判断: 当前苹果编号 i=${i} ${i == executionState.n ? '是' : '不是'}目标苹果n=${executionState.n}`,
+                                state: {
+                                    ...getCurrentState(),
+                                    i: i,
+                                    k: i == executionState.n ? executionState.ans + 1 : executionState.k
+                                }
+                            });
+                            
+                            // 如果是目标苹果，记录k值
+                            if (i == executionState.n) {
+                                executionState.k = executionState.ans + 1;
+                            }
+                            
+                            steps.push({
+                                id: stepId++,
+                                type: STEP_TYPES.SET_A,
+                                line: 10, // a[i]=1;
+                                log: `拿取苹果: 标记苹果 ${i} 为已拿(a[${i}]=1)`,
+                                state: {
+                                    ...getCurrentState(),
+                                    i: i,
+                                    a: [...executionState.a.map((val, idx) => idx == i ? 1 : val)]
+                                }
+                            });
+                            
+                            // 更新苹果状态
+                            executionState.a[i] = 1;
+                            hasTaken = true;
+                            
+                            steps.push({
+                                id: stepId++,
+                                type: STEP_TYPES.SET_P,
+                                line: 11, // p=0;
+                                log: `更新状态: 设置p=0(标记当天有苹果被拿)`,
+                                state: {
+                                    ...getCurrentState(),
+                                    i: i,
+                                    p: 0
+                                }
+                            });
+                            
+                            // 更新p值
+                            executionState.p = 0;
+                            
+                            steps.push({
+                                id: stepId++,
+                                type: STEP_TYPES.SET_NOW,
+                                line: 12, // now=-1;
+                                log: `更新状态: 设置now=-1(重置计数)`,
+                                state: {
+                                    ...getCurrentState(),
+                                    i: i,
+                                    now: -1
+                                }
+                            });
+                            
+                            // 更新now值
+                            executionState.now = -1;
+                        }
+                    }
+                    
+                    steps.push({
+                        id: stepId++,
+                        type: STEP_TYPES.BREAK,
+                        line: 15, // if(p)break;
+                        log: `判断: p=${executionState.p}, ${executionState.p ? '当天没有苹果被拿，跳出循环' : '当天有苹果被拿，继续循环'}`,
+                        state: {
+                            ...getCurrentState()
+                        }
+                    });
+                    
+                    if (executionState.p) {
+                        // 没有苹果被拿，跳出循环
+                        continueLoop = false;
+                        
+                        steps.push({
+                            id: stepId++,
+                            type: STEP_TYPES.END,
+                            line: 17, // cout<<ans<<" "<<k;
+                            log: `所有苹果都已被拿取，总天数 ans=${executionState.ans}, 目标苹果n=${executionState.n}被拿天数 k=${executionState.k}`,
+                            state: {
+                                ...getCurrentState()
+                            }
+                        });
+                    } else {
+                        steps.push({
+                            id: stepId++,
+                            type: STEP_TYPES.INCR_ANS,
+                            line: 16, // ans++;
+                            log: `更新天数: ans++ (总天数变为 ${executionState.ans + 1})`,
+                            state: {
+                                ...getCurrentState(),
+                                ans: executionState.ans + 1
+                            }
+                        });
+                        
+                        // 更新ans值
+                        executionState.ans++;
+                    }
+                    
+                    // 重置当天变量
+                    executionState.p = 1;
+                    executionState.now = 1;
+                }
+                
+                executionState.steps = steps;
+            }
+            
+            // 获取当前状态
+            function getCurrentState() {
+                return {
+                    n: executionState.n,
+                    a: [...executionState.a],
+                    ans: executionState.ans,
+                    k: executionState.k,
+                    p: executionState.p,
+                    now: executionState.now,
+                    i: executionState.i
+                };
+            }
+            
+            // 执行下一步
+            function executeNextStep() {
+                if (executionState.step >= executionState.steps.length) return;
+                
+                const step = executionState.steps[executionState.step];
+                executionState.step++;
+                
+                // 更新状态
+                executionState.a = step.state.a;
+                executionState.ans = step.state.ans;
+                executionState.k = step.state.k;
+                executionState.p = step.state.p;
+                executionState.now = step.state.now;
+                executionState.i = step.state.i;
+                
+                // 更新UI
+                renderApples();
+                
+                // 根据步骤类型高亮不同代码行
+                switch (step.type) {
+                    case STEP_TYPES.INIT:
+                        highlightCodeLine(3, true); // cin>>n;
+                        break;
+                    case STEP_TYPES.WHILE_LOOP:
+                        highlightCodeLine(step.line == 4 ? 4 : 5, true); // while(1){ 或 int p=1,now=1;
+                        break;
+                    case STEP_TYPES.FOR_LOOP:
+                        highlightCodeLine(6, true); // for(int i=1;i<=n;i++){
+                        break;
+                    case STEP_TYPES.IF_A:
+                        highlightCodeLine(7, true); // if(a[i]==0)now++;
+                        break;
+                    case STEP_TYPES.IF_NOW:
+                        highlightCodeLine(8, true); // if(now==2){
+                        break;
+                    case STEP_TYPES.IF_N_I:
+                        highlightCodeLine(9, true); // if(n==i)k=ans+1;
+                        break;
+                    case STEP_TYPES.SET_A:
+                        highlightCodeLine(10, true); // a[i]=1;
+                        break;
+                    case STEP_TYPES.SET_P:
+                        highlightCodeLine(11, true); // p=0;
+                        break;
+                    case STEP_TYPES.SET_NOW:
+                        highlightCodeLine(12, true); // now=-1;
+                        break;
+                    case STEP_TYPES.BREAK:
+                        highlightCodeLine(15, true); // if(p)break;
+                        break;
+                    case STEP_TYPES.INCR_ANS:
+                        highlightCodeLine(16, true); // ans++;
+                        break;
+                    case STEP_TYPES.END:
+                        highlightCodeLine(17, true); // cout<<ans<<" "<<k;
+                        break;
+                }
+                
+                // 添加日志
+                addLog(step.log, step.type === STEP_TYPES.SET_A);
+                
+                // 更新按钮状态
+                updateButtons();
+                
+                // 如果自动播放中且不是最后一步，继续执行下一步
+                if (executionState.isPlaying && executionState.step < executionState.steps.length) {
+                    setTimeout(executeNextStep, executionState.speed);
+                } else if (executionState.isPlaying && executionState.step >= executionState.steps.length) {
+                    togglePlay(); // 播放结束，停止播放
+                }
+            }
+            
+            // 执行上一步
+            function executePrevStep() {
+                if (executionState.step <= 0) return;
+                
+                executionState.step--;
+                const step = executionState.steps[executionState.step];
+                
+                // 恢复到上一步状态
+                executionState.a = step.state.a;
+                executionState.ans = step.state.ans;
+                executionState.k = step.state.k;
+                executionState.p = step.state.p;
+                executionState.now = step.state.now;
+                executionState.i = step.state.i;
+                
+                // 更新UI
+                renderApples();
+                addLog(`<span class="text-gray-500">回到上一步</span>`);
+                
+                // 更新按钮状态
+                updateButtons();
+            }
+            
+            // 切换自动播放
+            function togglePlay() {
+                const playBtn = document.getElementById('play-btn');
+                
+                if (executionState.isPlaying) {
+                    // 停止播放
+                    executionState.isPlaying = false;
+                    playBtn.innerHTML = '<i class="fa fa-play mr-1"></i>播放';
+                    
+                    if (executionState.intervalId) {
+                        clearInterval(executionState.intervalId);
+                        executionState.intervalId = null;
+                    }
+                } else {
+                    // 开始播放
+                    executionState.isPlaying = true;
+                    playBtn.innerHTML = '<i class="fa fa-pause mr-1"></i>暂停';
+                    
+                    // 立即执行一步
+                    if (executionState.step < executionState.steps.length) {
+                        executeNextStep();
+                    }
+                }
+            }
+            
+            // 改变播放速度
+            function changeSpeed() {
+                const speeds = [500, 1000, 2000, 3000];
+                const speedNames = ['快速', '中速', '慢速', '极慢'];
+                
+                // 切换到下一个速度
+                const currentSpeedIndex = speeds.indexOf(executionState.speed);
+                const nextSpeedIndex = (currentSpeedIndex + 1) % speeds.length;
+                
+                executionState.speed = speeds[nextSpeedIndex];
+                document.getElementById('speed-btn').innerHTML = 
+                    `<i class="fa fa-clock-o mr-1"></i>${speedNames[nextSpeedIndex]}`;
+                
+                addLog(`播放速度已调整为: ${speedNames[nextSpeedIndex]} (${executionState.speed}ms)`);
+            }
+            
+            // 更新按钮状态
+            function updateButtons() {
+                const prevBtn = document.getElementById('prev-btn');
+                const nextBtn = document.getElementById('next-btn');
+                const playBtn = document.getElementById('play-btn');
+                
+                // 更新上一步/下一步按钮状态
+                prevBtn.disabled = executionState.step <= 0;
+                nextBtn.disabled = executionState.step >= executionState.steps.length;
+                
+                // 更新播放按钮状态
+                if (executionState.step >= executionState.steps.length) {
+                    executionState.isPlaying = false;
+                    playBtn.innerHTML = '<i class="fa fa-play mr-1"></i>播放';
+                    
+                    if (executionState.intervalId) {
+                        clearInterval(executionState.intervalId);
+                        executionState.intervalId = null;
+                    }
+                }
+            }
+            
+            // 事件绑定
+            nInput.addEventListener('change', () => {
+                executionState.n = parseInt(nInput.value) || 8;
+                resetSimulation();
+            });
+            
+            // 初始化显示
+            renderApples();
+        });
+    </script>
+</body>
+</html>
